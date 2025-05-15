@@ -1,0 +1,1349 @@
+есть такая библиотека UI
+```
+import { EventHandlers, OhaeViewOptions } from "./OhaeViewOptions";
+import { OhaeBaseView } from "./widgets/OhaeBaseView";
+
+export class OhaeUI {
+    private static PREFIX: string = 'ohae-';
+    private static viewTypes: Record<string, CustomElementConstructor> = {};
+    private static viewList: Record<string, HTMLElement> = {};
+
+    private parent: HTMLElement;
+    private view: HTMLElement | Text | (HTMLElement|Text)[] | null;
+
+    constructor(data: OhaeViewOptions | string | (OhaeViewOptions | string)[], parent: HTMLElement | string | null = null) {
+        if (typeof parent === 'string') {
+            this.parent = document.getElementById(parent) || document.body;
+        } else {
+            this.parent = parent || document.body;
+        }
+        this.view = OhaeUI.createView(data, this.parent);
+    }
+
+    static registerViewType(typeName: string, typeClass: CustomElementConstructor, options?: ElementDefinitionOptions) {
+        OhaeUI.viewTypes[typeName] = typeClass;
+        customElements.define(OhaeUI.getName(typeName), typeClass, options);
+    }
+
+    static getViewClassByType(typeName: string = 'layout'): CustomElementConstructor | undefined {
+        return OhaeUI.viewTypes[typeName];
+    }
+
+    static getViewById(viewId: string): HTMLElement | undefined {
+        return OhaeUI.viewList[viewId];
+    }
+
+    static isRegistered(typeName: string): boolean {
+        return !!OhaeUI.viewTypes[typeName];
+    }
+
+    static getName(typeName: string): string {
+        return OhaeUI.viewTypes[typeName] ? OhaeUI.PREFIX + typeName : typeName;
+    }
+
+    static getPrefixedId(id: string | number): string {
+        return OhaeUI.PREFIX + id.toString();
+    }
+
+    static storeView(viewId: string, viewInstance: HTMLElement) {
+        if (!viewId) return;
+        OhaeUI.viewList[viewId] = viewInstance;
+    }
+
+    static createView(data: OhaeViewOptions | string | (OhaeViewOptions | string)[], parent: HTMLElement): HTMLElement | (HTMLElement|Text)[] | Text | null {
+        if (!data) return null;
+
+        if (typeof data === 'string') {
+            return this.createHtmlBlock(data, parent);
+        }
+
+        if (Array.isArray(data)) {
+            const fragments: (HTMLElement|Text)[] = [];
+            data.forEach((item) => {
+                const fragment = OhaeUI.createView(item, parent);
+                if (fragment) {
+                    if (Array.isArray(fragment)) {
+                        fragments.push(...fragment);
+                    } else {
+                        fragments.push(fragment);
+                    }
+                }
+            });
+            return fragments;
+        }
+
+        if (typeof data === 'object') {
+            return OhaeUI.createElement(data, parent);
+        }
+        return null;
+    }
+    
+    private static createHtmlBlock(text: string, parent: HTMLElement): HTMLElement | Text | null{
+        // const fragment = document.createTextNode(text);
+        const fragment = document.createElement('span');
+        parent.appendChild(fragment);
+        fragment.innerHTML = text;
+        return fragment;
+        // parent.innerHTML += text;
+        // return null;
+    }
+
+    private static createElement(options: OhaeViewOptions, parent: HTMLElement): HTMLElement {
+
+        const viewType = options.view ?? 'layout';
+        const viewName = OhaeUI.getName(viewType);
+        // console.log('createElement',viewType, viewName);
+        const viewItem = document.createElement(viewName);
+
+        if(viewItem instanceof OhaeBaseView){
+            this.initOhaeHtmlElement(viewItem, options);
+        }else{
+            this.initStandartHtmlElement(viewItem, options);
+        }
+
+        parent.appendChild(viewItem);
+        OhaeUI.storeView(options.id, viewItem);
+
+        return viewItem;
+
+    }
+
+    private static initOhaeHtmlElement(viewItem: OhaeBaseView, options: OhaeViewOptions): void {
+        const viewType = options.view ?? 'layout';
+
+        const body = options.rows ?? options.cols ?? options.body;
+        const direction = options.cols ? 'cols' : options.rows ? 'rows' : 'cols';
+        options.direction = direction;
+
+        viewItem.init(options);
+
+        if (viewType === 'layout') {
+            viewItem.setAttribute('direction', direction);
+        }
+
+        Object.entries(options).forEach(([key, value]) => {
+            if (key === 'id'){
+                viewItem.setAttribute(key, this.getPrefixedId(value));
+            // }else if (!['options', 'body', 'rows', 'cols'].includes(key) && value !== undefined) {
+            }else if (typeof value != 'object' && value !== undefined) {
+                if(value!==null) (viewItem as OhaeBaseView).setAttribute(key, value.toString());
+            }
+        });
+
+        if (body) {
+            OhaeUI.createView(body, viewItem);
+        }
+    }
+
+    private static initStandartHtmlElement(viewItem: HTMLElement, options: OhaeViewOptions) {
+        Object.entries(options).forEach(([key, value]) => {
+            if (key === 'id'){
+                viewItem.setAttribute(key, this.getPrefixedId(value));
+            }else if (!['options', 'body', 'rows', 'cols'].includes(key) && value !== undefined) {
+                (viewItem as OhaeBaseView).setAttribute(key, value.toString());
+            }
+        });
+        this.applyListeners(viewItem, options.on);
+
+    }
+
+    private static applyListeners(element: HTMLElement, listeners?: EventHandlers): void {
+        if (!listeners) return;
+        Object.entries(listeners).forEach(([key, callback]) => {
+            element.addEventListener(key, (event: Event) => {
+                callback.call(element, event);
+            });
+        });
+    }
+
+}
+```
+
+вот такие тайпинги для инициализационных данных
+```
+import { DataTableColumn } from "./widgets/OhaeDataTableView";
+
+export type AlignValues = 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly' | 'start' | 'end' | 'none' ;
+export type FlexAlignValues = 'stretch' | 'flex-start' | 'center' | 'flex-end' | 'baseline' | 'none';
+export type Side = 'top' | 'bottom' | 'left' | 'right';
+export interface OhaeViewOptions {
+    view?: string;
+    direction?: 'rows' | 'cols';
+    backgroundColor?: string;
+    block?: boolean;
+    width?: string | number;
+    minWidth?: string | number;
+    maxWidth?: string | number;
+    height?: string | number;
+    minHeight?: string | number;
+    maxHeight?: string | number;
+    padding?: string | number;
+    margin?: string | number;
+    flex?: string | number;
+    overflowY?: string;
+    align?: AlignValues;
+    valign?: FlexAlignValues;
+    body?: (OhaeViewOptions | string)[] | OhaeViewOptions | string;
+    rows?: (OhaeViewOptions | string)[];
+    cols?: (OhaeViewOptions | string)[];
+    on?: Record<string, (this: HTMLElement, ev: Event) => void>;
+    
+    // для табов
+    side?: Side;
+
+    // общее для input, select, textarea
+    name?: string;
+    separator?: string;
+    label?: string;
+    inputWidth?: string | number;
+    disabled?: string | boolean;
+    readonly?: string | boolean;
+    required?: string | boolean;
+    reverse?: string | boolean;
+
+    // для input
+    value?: string | number | boolean;
+    type?: string;
+    alt?: string;
+    src?: string;
+    pattern?: string;
+    max?: string | number;
+    min?: string | number;
+    step?: string | number;
+    minlength?: string | number;
+    maxLength?: string | number;
+    size?: string | number;
+    placeholder?: string;
+    accept?: string;
+    checked?: string | boolean;
+
+    // для select 
+    multiple?: string | boolean | number;
+    lines?: string | number;
+    options?: any;
+
+    // для аккордионов
+    enableShift?: string | boolean;
+
+    // для tabsView
+    allowHideAll?: string | boolean;
+    tabsSide?: Side;
+    tabsHeight?: string | number;
+    tabsWidth?: string | number;
+
+    // для tabItenView
+    tabIcon?: string | number;
+    header?: string | number;
+    active?: string | boolean;
+
+    // для DataTableView
+    columns?: DataTableColumn[];
+    data?: any[];
+    striped?: boolean;
+    hover?: boolean;
+
+    [key: string]: any; // Для поддержки дополнительных атрибутов
+}
+
+export type EventHandlers = Record<string, EventHandler>;
+export type EventHandler = (this: HTMLElement, ev: Event) => void;
+```
+
+вот такие компоненты (на самом деле их больше, но и этих хватит чтобы увидеть стиль кода и понять и запомнить как все взаимодействует)
+```
+import { OhaeUI } from '../OhaeUI';
+import { AlignValues, EventHandler, EventHandlers, OhaeViewOptions } from '../OhaeViewOptions';
+import { Color } from '../utils/Collor.ts';
+import { SizeNumber } from '../utils/SizeNumber.ts';
+
+export class OhaeBaseView extends HTMLElement {
+	public static readonly ATTRIBUTES: string[] = [
+		'id',
+		'align',
+		'valign',
+		'flex',
+		'width',
+		'height',
+		'maxWidth',
+		'maxHeight',
+		'minWidth',
+		'minHeight',
+		'padding',
+		'margin',
+		'backgroundColor',
+		'parentDirrection',
+	];
+	protected static readonly STYLES: string = `
+		<style>
+			:host {
+				border-radius: 3px;
+				display: flex;
+				box-sizing: border-box;
+				padding: 0px;
+				margin: 0px;
+				flex: none;
+			}
+			:host([backgroundColor]) {
+				box-shadow: 2px 2px 2px rgba(0, 0, 0, .1);
+				background-color:  var(--host-bg, #333);
+				color: var(--host-color, #aaa);
+			}
+		</style>
+	`;
+	protected static readonly HTML: string = `
+		<slot></slot>
+	`;
+	protected static readonly JUSTIFY_VALUES_MAP: Record<AlignValues, string> = {
+		'flex-start': 'left', 			// Элементы выравниваются по началу основной оси (по умолчанию).
+		'flex-end': 'right', 			// Элементы выравниваются по концу основной оси.
+		'center': 'center', 			// Элементы выравниваются по центру основной оси.
+		'space-between': 'justify', 	// Элементы распределяются равномерно по основной оси, первый элемент прижимается к началу, последний — к концу, а остальные равномерно распределяются.
+		'space-around': 'justify', 		// Элементы распределяются равномерно, но с равными промежутками вокруг каждого элемента.
+		'space-evenly': 'justify', 		// Элементы распределяются равномерно, включая промежутки до первого и после последнего элемента.
+		'start': 'left', 				// Элементы выравниваются по началу контейнера (по оси написания текста, обычно для текстов слева направо).
+		'end': 'right', 				// Элементы выравниваются по концу контейнера (по оси написания текста, обычно для текстов справа налево).
+		'none': 'left'
+	}
+	protected elementOptions?: OhaeViewOptions;
+	protected shadow!: ShadowRoot;
+
+	constructor() {
+		super();
+		this.shadow = this.attachShadow({ mode: 'open' });
+	}
+
+	static get observedAttributes(): string[] {
+		return [...OhaeBaseView.ATTRIBUTES];
+	}
+
+	public init(options: OhaeViewOptions) {
+		this.elementOptions = options;
+	}
+
+	protected connectedCallback() {
+		this.render();
+		this.applyListeners();
+		this.applyAttributes(OhaeBaseView.observedAttributes);
+
+		const parent = this.parentElement as HTMLElement;
+		const observer = new MutationObserver(this.updateParentDirection.bind(this));
+		observer.observe(parent, { attributes: true, attributeFilter: ['direction'] });
+		this.updateParentDirection();
+	}
+
+	private updateParentDirection() {
+		const parent = this.parentElement as HTMLElement;
+		const parentDirection = parent.getAttribute('direction');
+		this.setAttribute('parentDirection', parentDirection ?? 'rows')
+	}
+
+	protected disconnectedCallback() {
+	}
+
+	protected attributeChangedCallback(name: string, oldValue: string, newValue: string) {
+		if (oldValue !== newValue) {
+			this.applyAttribute(name, newValue);
+		}
+	}
+
+	protected render() {
+		const staticThis = (this.constructor as typeof OhaeBaseView);
+		this.shadowRoot!.innerHTML = staticThis.STYLES + staticThis.HTML;
+	}
+
+	protected getListenesTarget(): HTMLElement | null {
+		// const terget = this.shadowRoot?.querySelector("slot") as HTMLElement | null;
+		// return terget;
+		return this;
+	}
+
+	protected applyListeners(): void {
+		const listeners = this?.elementOptions?.on as EventHandlers;
+		if (!listeners) return;
+
+		const targetElement = this.getListenesTarget();
+		if (!targetElement) return;
+
+		const self = this;
+		Object.entries(listeners).forEach(([key, callback]) => {
+			targetElement.addEventListener(key, (ev: Event) => {
+				(callback as EventHandler).call(self, ev);
+			});
+		});
+	}
+
+	protected applyAttributes(attributes: string[]): void {
+		attributes.forEach(name => {
+			const value = this.getAttribute(name);
+			if (value !== null) this.applyAttribute(name, value);
+		});
+	}
+
+	protected applyAttribute(name: string, value: string): void {
+		if (name in this) {
+			(this as any)[name] = value;
+		}
+	}
+
+	setOptions(operations: any) {
+	}
+
+	get flex(): number | null {
+		const value = this.getAttribute('flex');
+		if (!value) return null
+		return parseFloat(value);
+	}
+	set flex(value: string | number | null) {
+		if (value === null) return;
+
+		if (value === 'none') {
+			this.style.flexGrow = 'none';
+			this.setAttribute('flex', 'none');
+		} else if (typeof value === 'number') {
+			this.style.flexGrow = value.toString();
+			this.setAttribute('flex', value.toString());
+		} else {
+			this.style.flexGrow = value;
+		}
+	}
+
+	get backgroundColor(): Color | null {
+		const backgroundColor = this.getAttribute('backgroundColor');
+		if (!backgroundColor) return null;
+		return new Color(backgroundColor);
+	}
+	set backgroundColor(value: string | Color | null) {
+		if (!value) return;
+
+		const color = typeof value === 'string' ? new Color(value) : value;
+		this.setAttribute('backgroundColor', color.hex);
+
+		this.style.setProperty("--host-bg", color.hex);
+		this.style.setProperty("--host-color", color.contrast(0.5).mono().hex);
+		this.style.setProperty("--host-hr-color", color.contrast(0.2).mono().hex);
+		
+		this.style.setProperty("--host-hover-bg", color.brightness(1.1).hex);
+		this.style.setProperty("--host-active-bg", color.brightness(1.2).hex);
+		this.style.setProperty("--host-border", color.brightness(0.8).hex);
+		this.style.setProperty("--host-head-bg", color.brightness(0.5).mono().hex);	
+		this.style.setProperty("--host-head-color", color.contrast(0.5).mono().hex);
+	}
+
+	get align(): string | null {
+		return this.getAttribute('align');
+	}
+	set align(value: string | null) {
+		if (value === null) return;
+		this.setAttribute('align', value);
+		this.style.textAlign = OhaeBaseView.JUSTIFY_VALUES_MAP[value as AlignValues];
+		this.style.justifyContent = value;
+	}
+
+	get valign(): string | null {
+		return this.getAttribute('align');
+	}
+	set valign(value: string | null) {
+		if (value === null) return;
+		this.style.alignItems = value;
+	}
+
+	get margin(): string | null {
+		return this.getAttribute('margin');
+	}
+	set margin(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('margin', parsedValue);
+		this.style.margin = parsedValue;
+	}
+
+	get padding(): string | null {
+		return this.getAttribute('padding');
+	}
+	set padding(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('padding', parsedValue);
+		this.style.padding = parsedValue;
+	}
+
+	get height(): string | null {
+		return this.getAttribute('height');
+	}
+	set height(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('height', parsedValue);
+		this.style.height = parsedValue;
+	}
+
+	get minHeight(): string | null {
+		return this.getAttribute('minHeight');
+	}
+
+	set minHeight(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('minHeight', parsedValue);
+		this.style.minHeight = parsedValue;
+	}
+
+	get maxHeight(): string | null {
+		return this.getAttribute('maxHeight');
+	}
+	set maxHeight(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('maxHeight', parsedValue);
+		this.style.maxHeight = parsedValue;
+	}
+
+	get width(): string | null {
+		return this.getAttribute('width');
+	}
+	set width(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('width', parsedValue);
+		this.style.width = parsedValue;
+	}
+
+	get minWidth(): string | null {
+		return this.getAttribute('minWidth');
+	}
+	set minWidth(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('minWidth', parsedValue);
+		this.style.minWidth = parsedValue;
+	}
+
+	get maxWidth(): string | null {
+		return this.getAttribute('maxWidth');
+	}
+
+	set maxWidth(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('maxWidth', parsedValue);
+		this.style.maxWidth = parsedValue;
+	}
+
+	protected parseSizeValue(value: string | number): string {
+		const number = new SizeNumber(value);
+		return number.toString();
+	}
+
+	protected parseNumberValue(value: string | number): string {
+		const number = new SizeNumber(value);
+		return number.toNumber().toString();
+	}
+}
+
+OhaeUI.registerViewType('base', OhaeBaseView);
+```
+
+
+```
+import { OhaeUI } from "../OhaeUI";
+import { OhaeLayoutView } from "./OhaeLayoutView";
+
+export class OhaeAccordionItemView extends OhaeLayoutView {
+    public static readonly ATTRIBUTES: string[] = [
+        'collapsed',
+        'header',
+    ];
+
+    protected static readonly STYLES: string = `
+    <style>
+        :host {
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            border-radius: 4px;
+            padding: 0px;
+            margin: 0px;
+            /* flex-grow: 1; */
+            /* !!! border: solid #222 1px; */
+            /* !!! background-color: #484848; */
+        }
+
+        :host([backgroundColor]) {
+            box-shadow: 2px 2px 2px rgba(0, 0, 0, .1);
+            color: var(--host-color, #ddd);
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            height: 28px;
+            background-color: var(--host-bg-color, #404040);
+            color: #ссс;
+            border-radius: 4px 4px 0 0;
+            justify-content: space-between;
+            padding: 0px 10px;
+            cursor: pointer;
+            font-weight: 500;
+            margin: 2px 0 0 0 ;
+        }
+        :host([parentDirection="cols"][collapsed]) .header {
+            flex-direction: column-reverse;
+            justify-content: flex-start;
+            align-items: center;
+            padding: 4px 0px;
+            height: 100%;
+            width: 28px;
+        }
+
+        .header-body {
+            display: flex;
+            flex: 1;
+            text-align: center;
+            justify-content: center;
+            height: auto;
+            width: auto;
+        }
+        :host([parentDirection="cols"][collapsed]) .header-body {
+            transform-origin: top left;
+            transform:  translateY(50%) rotate(-90deg);
+            white-space: nowrap;
+            display: flex;
+            flex: 1;
+            width: 100%;
+            height: 28px; /* Высота теперь фиксированная, т.к. он повёрнут */
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .header-icon {
+            flex: 0;
+            margin-left: 0px;
+        }
+        :host([parentDirection="cols"][collapsed]) .header-icon {
+            margin: 0;
+            padding: 0;
+            margin-bottom: 0px;
+        }
+
+        .body {
+            background-color: var(--host-bg-color, #404040);
+            display: flex;
+            flex-direction: column;
+            padding: 5px;
+            /* width: 100%; */
+            /* overflow: hidden; */
+            /* flex-grow: 1;*/
+        }
+        .collapse {
+            display: none;
+        }
+    </style>
+    `;
+    protected static readonly ICON_CLOSE: string = '⬤'; //▼ //▼◆■▲◄●▬◯◼ ⚫⦁
+    protected static readonly ICON_OPEN = '⭘'; //◄ //►◄▼✚୦๏྾ᐤ᠅᪠᮰ᰞ᳁᳃‒⊕⊖⊗⊘⊙⊚
+    protected static readonly ICON_PINED = '❖'; //◆
+    // ⊕⊖⊗⊘⊙⊚⊛⊜⊝⊞⊟⊠⊡ ⌾⏣⏻⏼
+    // ⦶⦷⦸⦹⦺⦻⦼⦽⦾⦿⧀⧁⧂⧃⧄⧅⧆⧇⧈⧉⧊⧋⧌⧍⧎⧏⧐
+    // ┉ ⋯ ᠁ ╍ ╸ ╺
+    // ⨂⨁⨀⭘⬤⮿⮾⯀⬥⬣⬢⯃⯄⯍⯌
+    // ⯅⯆⯇⯈
+
+    protected static readonly HTML: string = `
+        <div class="header">
+            <div class="header-body"></div>
+            <div class="header-icon">${this.ICON_CLOSE}</div>
+        </div>
+        <div class="body">
+            <slot></slot>
+        </div>
+    `;
+
+    protected override connectedCallback() {
+        super.connectedCallback();
+        this.applyAttributes(OhaeAccordionItemView.ATTRIBUTES);
+        this.backgroundColor = this.backgroundColor ?? "#444";
+        const header = this.shadowRoot?.querySelector('.header') as HTMLElement;
+        if (header) {
+            header.addEventListener('click', this.toggleCollapse.bind(this));
+        }
+
+        this.updateIcon();
+    }
+
+    static get observedAttributes() {
+        return [...super.observedAttributes, ...this.ATTRIBUTES];
+    }
+
+    private toggleCollapse() {
+        this.collapsed = !this.collapsed;
+
+        // Генерация события section-toggle
+        const event = new CustomEvent('section-toggle', {
+            bubbles: true, // Событие всплывает до родительских элементов
+            composed: true, // Событие пересекает границы Shadow DOM
+            detail: { section: this, collapsed: this.collapsed },
+        });
+        this.dispatchEvent(event);
+    }
+
+    private updateIcon() {
+        const headerIcon = this.shadowRoot?.querySelector('.header-icon') as HTMLElement;
+        if (!headerIcon) return;
+        headerIcon.innerText = this.collapsed ? OhaeAccordionItemView.ICON_OPEN : OhaeAccordionItemView.ICON_CLOSE;
+    }
+
+    get collapsed(): boolean {
+		return this.getAttribute('collapsed') === 'true';
+	};
+	set collapsed(value: boolean | string | null) {
+		value = value === true || value === 'true';
+
+        const body = this.shadowRoot?.querySelector('.body') as HTMLElement;
+        if (value) {
+			this.setAttribute('collapsed', value.toString());
+            body?.classList.add('collapse');
+		} else {
+			this.removeAttribute('collapsed');
+            body?.classList.remove('collapse');
+		}
+        this.updateIcon();
+    }
+
+    get header(): string {
+        const headerBody = this.shadowRoot?.querySelector('.header-body') as HTMLElement;
+        return headerBody?.innerText ?? '';
+    }
+    set header(value: string) {
+        const headerBody = this.shadowRoot?.querySelector('.header-body') as HTMLElement;
+        if (headerBody) {
+            headerBody.innerText = value ?? '';
+        }
+    }
+}
+
+OhaeUI.registerViewType('accordion-item', OhaeAccordionItemView);
+```
+
+
+```
+import { OhaeUI } from "../OhaeUI";
+import { OhaeBaseView } from "./OhaeBaseView";
+
+export class OhaeBaseInputView extends OhaeBaseView {
+	public static readonly ATTRIBUTES: string[] = [
+		'name',
+		'separator',
+		'label',
+		'inputWidth',
+		'disabled',
+		'readonly',
+		'required',
+		'reverse',
+	];
+
+	protected static readonly STYLES: string = `
+	<style>
+		:host {
+			display: flex;
+			min-height: 26px;
+			max-height: 26px;
+			padding: 0px;
+			margin: 0px;
+		}
+		.input-wrapper {
+			margin: 3px 3px;
+			display: flex;
+			width: 100%;
+		}
+		.input-box {
+			display: flex;
+			height: 100%;
+			--input-width: 200px;
+			width: var(--input-width);
+			min-width: var(--input-width);
+			max-width: var(--input-width);
+			padding: 0px;
+			margin: 0px;
+			justify-content: right;
+			align-items: center;
+		}
+		.input-separator {
+			display: flex;
+			align-items: center;
+			min-width: 10px;
+			max-width: 10px;
+			margin: 0px 5px;
+			flex-basis: 10px;
+			font-size: 8px;
+			color: #ab6161;
+		}
+		.input-label {
+			display: flex;
+			align-items: center;
+			text-align: center;
+			padding: 0px;
+			margin: 0px;
+			white-space: nowrap;
+		}
+		input {
+			color: #aab;
+			outline: 0;
+			background-color: #3d3d3d;
+			/* box-shadow: inset 1px 1px 12px rgba(0, 0, 0, 0.2); */
+			border: solid #282828 1px;
+			border-radius: 3px;
+			margin: 0px;
+			padding: 0px 0px;
+			width: 100%;
+			height: 100%;
+		}
+		input:focus, input:active {
+			border: solid rgb(65, 94, 156) 1px;
+			box-shadow: none;
+			/* outline: none; */ /* Убирает стандартное выделение */
+		}
+		input:disabled {
+			background-color: #444;
+			border: solid #383838 1px;
+			color: #777;
+			box-shadow: none;
+		}
+
+/*********** Baseline, reset styles ***********/
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  border: none;
+  /* width: 90px; */
+}
+
+/* Removes default focus */
+input[type="range"]:focus {
+  outline: none;
+}
+
+/******** Chrome, Safari, Opera and Edge Chromium styles ********/
+/* slider track */
+input[type="range"]::-webkit-slider-runnable-track {
+  background-color: #415e9c;
+  border-radius: 0.5rem;
+  height: 0.3rem;
+}
+
+/* slider thumb */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; /* Override default look */
+  appearance: none;
+  margin-top: -5.6px; /* Centers thumb on the track */
+  background-color: rgb(170,170,170);
+  border-radius: 0.5rem;
+  height: 1rem;
+  width: 1rem;
+}
+
+input[type="range"]:focus::-webkit-slider-thumb {
+  outline: 0
+}
+
+/*********** Firefox styles ***********/
+/* slider track */
+input[type="range"]::-moz-range-track {
+  background-color: #415e9c;
+  border-radius: 0.5rem;
+  height: 0.3rem;
+}
+
+/* slider thumb */
+input[type="range"]::-moz-range-thumb {
+  background-color: #899fd2;
+  border: none;
+  border-radius: 0.5rem;
+  height: 1rem;
+  width: 1rem;
+}
+
+input[type="range"]:focus::-moz-range-thumb{
+  outline: 0;
+}
+
+		/* Основной стиль контейнера */
+		.input-container {
+			display: inline-flex;
+			position: relative;
+
+			/* display: flex; */
+			align-items: center;
+			text-align: justify;
+			flex: 1 0;
+			padding: 0px;
+			margin: 0px;
+
+			justify-content: right;
+			height: 100%;
+
+
+		}
+
+		/* Чекбокс скрываем */
+		.input-container input[type="checkbox"], .input-container input[type="radio"] {
+			display: none;
+		}
+
+		/* Стиль переключателя */
+		.switch {
+			display: none; /* По умолчанию скрыт */
+			width: 50px;
+			height: 20px;
+			background: #3d3d3d;
+			border-radius: 21px;
+			position: relative;
+			cursor: pointer;
+			transition: background 0.3s;
+			border: solid #282828 1px;
+		}
+
+		/* Ползунок */
+		.switch::before {
+			content: "";
+			position: absolute;
+			width: 15px;
+			height: 15px;
+			background: #aaa;
+			border-radius: 50%;
+			top: 50%;
+			left: 3px;
+			transform: translateY(-50%);
+			transition: left 0.3s;
+		}
+
+		/* Активный переключатель */
+		.input-container input[type="checkbox"]:checked + .switch {
+			/* background: rgb(65, 94, 156) */
+			background: rgb(65, 94, 156);
+		}
+		.input-container input[type="radio"]:checked + .switch {
+			/* background:rgb(65, 94, 156);*/
+			background: #3f4760;
+		}
+
+		.input-container input[type="checkbox"]:checked + .switch::before, .input-container input[type="radio"]:checked + .switch::before {
+			left: 31px;
+		}
+
+		/* Когда input становится checkbox, показываем switch */
+		.input-container input[type="checkbox"] + .switch, .input-container input[type="radio"] + .switch {
+			display: inline-block;
+		}
+
+
+	</style>
+	<!--link rel="stylesheet" href="./external.css"-->
+	<!--link rel="stylesheet" href="./index.input.css"-->
+	`;
+
+	protected static readonly HTML: string = `
+		<div class="input-wrapper">
+			<div class="input-box">
+				<label class="input-container">
+					<input class="input" />
+					<span class="switch"></span>
+				</label>				
+			</div>
+			<div class="input-separator"></div>
+			<label class="input-label"></label>
+		</div>
+	`;
+
+	connectedCallback() {
+		super.connectedCallback();
+		this.applyAttributes(OhaeBaseInputView.ATTRIBUTES);
+	}
+
+	static get observedAttributes() {
+		return [...super.observedAttributes, ...this.ATTRIBUTES];
+	}
+
+	protected get inputWrapperView(): HTMLDivElement {
+		return this.shadowRoot?.querySelector('.input-wrapper') as HTMLDivElement;
+	}
+
+	protected get inputBoxView(): HTMLDivElement {
+		return this.shadowRoot?.querySelector('.input-box') as HTMLDivElement;
+	}
+
+	protected get inputView(): HTMLInputElement {
+		return this.shadowRoot?.querySelector('input') as HTMLInputElement;
+	}
+
+	protected get separatorView(): HTMLDivElement {
+		return this.shadowRoot?.querySelector('.input-separator') as HTMLDivElement;
+	}
+
+	protected get labelView(): HTMLLabelElement {
+		return this.shadowRoot?.querySelector('.input-label') as HTMLLabelElement;
+	}
+
+	protected override getListenesTarget(): HTMLElement | null {
+		return this.inputView;
+	}
+
+	get name(): string | null {
+		return this.getAttribute('name');
+	}
+	set name(value: string | null) {
+		if (value === null) {
+			this.removeAttribute('name');
+			this.inputView?.removeAttribute('name');
+		} else {
+			this.setAttribute('name', value);
+			this.inputView?.setAttribute('name', value);
+		}
+	}
+
+	get separator(): string {
+		return this.separatorView?.innerText || '💥'; //'●';
+	}
+	set separator(value: string | null) {
+		if (value === null) return;
+		this.setAttribute('separator', value);
+
+		const view = this.separatorView;
+		if (view) view.innerText = value;
+	}
+
+	get label(): string | null {
+		return this.getAttribute('label');
+	}
+	set label(value: string | null) {
+		if (value === null) return;
+		this.setAttribute('label', value);
+
+		const view = this.labelView;
+		if (view) view.innerText = value;
+	}
+
+	get inputWidth(): string | null {
+		return this.getAttribute('inputWidth');
+	}
+	set inputWidth(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('inputWidth', parsedValue);
+		this.inputBoxView?.style.setProperty('--input-width', parsedValue);
+	}
+
+	get disabled(): boolean {
+		return this.getAttribute('disabled') === 'true';
+	};
+	set disabled(value: boolean | string | null) {
+		value = value === true || value === 'true';
+		this.setAttribute('disabled', value.toString());
+		if (value) {
+			this.inputView?.setAttribute('disabled', 'true');
+		} else {
+			this.inputView?.removeAttribute('disabled');
+		}
+	}
+
+	get readonly(): boolean {
+		return this.getAttribute('readonly') === 'true';
+	};
+	set readonly(value: boolean | string | null) {
+		value = value === true || value === 'true';
+		this.setAttribute('readonly', value.toString());
+		const view = this.inputView;
+		if ((view as any)?.readOnly) (view as any).readOnly = value;
+	}
+
+	get required(): boolean {
+		return this.getAttribute('required') === 'true';
+	};
+	set required(value: boolean | string | null) {
+		value = value === true || value === 'true';
+		this.setAttribute('required', value.toString());
+
+		const view = this.separatorView;
+		if (!view) return;
+		view.innerText = value ? this.separator : '';
+	}
+
+	get reverse(): boolean {
+		return this.getAttribute('reverse') === 'true';
+	};
+	set reverse(value: boolean | string | null) {
+		value = value === true || value === 'true';
+		this.setAttribute('reverse', value.toString());
+
+		if (!this.inputBoxView || !this.labelView || !this.inputWrapperView) return;
+		if (value === true) {
+			this.inputWrapperView.style.setProperty('flex-direction', 'row-reverse');
+			this.inputBoxView.style.setProperty('justify-content', 'left');
+			this.labelView.style.setProperty('justify-content', 'right');
+		} else {
+			this.inputWrapperView.style.setProperty('flex-direction', 'row');
+			this.inputBoxView.style.setProperty('justify-content', 'right');
+			this.labelView.style.setProperty('justify-content', 'left');
+		}
+	}
+}
+
+OhaeUI.registerViewType('base-input', OhaeBaseInputView);
+```
+
+```
+import { OhaeUI } from "../OhaeUI";
+import { OhaeBaseInputView } from "./OhaeBaseInputView";
+
+export class OhaeInputView extends OhaeBaseInputView {
+	public static readonly ATTRIBUTES: string[] = [
+		'value',
+		'type',
+		'alt',
+		'src',
+		'pattern',
+		'max',
+		'min',
+		'step',
+		'minlength',
+		'maxLength',
+		'size',
+		'placeholder',
+		'accept',
+		'checked',
+	];
+
+	connectedCallback() {
+		super.connectedCallback();
+		this.applyAttributes(OhaeInputView.ATTRIBUTES);
+	}
+
+	private get isCheckableValue(): boolean {
+		const type = this.type;
+		return type === 'checkbox' || type === 'radio';
+	}
+
+	private get isNumericValue(): boolean {
+		const type = this.type;
+		return type === 'number' || type === 'range';
+	}
+
+	get value(): string | number | boolean {
+		if (this.isCheckableValue) {
+			return this.checked;
+		} else if (this.isNumericValue) {
+			return parseFloat(this.inputView?.value);
+		} else {
+			return this.inputView?.value;
+		}
+	}
+	set value(value: string | number | boolean | null) {
+		if (value === null) return;
+		this.setAttribute('value', value.toString());
+		const view = this.inputView;
+		if (this.isCheckableValue) {
+			this.checked = value === true || value === 'true';
+		} else if (this.isNumericValue) {
+			if (view) view.value = value.toString();
+		} else {
+			if (view) view.value = value.toString();
+		}
+	}
+
+	get type(): string | null {
+		return this.getAttribute('type');
+	}
+	set type(value: string | null) {
+		if (value !== null) {
+			this.setAttribute('type', value);
+			this.inputView?.setAttribute('type', value);
+		} else {
+			this.removeAttribute('type');
+			this.inputView?.removeAttribute('type');
+		}
+	}
+
+	get pattern(): string | null {
+		return this.getAttribute('pattern');
+	}
+	set pattern(value: string | null) {
+		if (value !== null) {
+			this.setAttribute('pattern', value);
+			this.inputView?.setAttribute('pattern', value);
+		} else {
+			this.removeAttribute('pattern');
+			this.inputView.removeAttribute('pattern');
+		}
+	}
+
+	get placeholder(): string | null {
+		return this.getAttribute('placeholder');
+	}
+	set placeholder(value: string | null) {
+		if (value !== null) {
+			this.setAttribute('placeholder', value);
+			this.inputView?.setAttribute('placeholder', value);
+		} else {
+			this.removeAttribute('placeholder');
+			this.inputView?.removeAttribute('placeholder');
+		}
+	}
+
+	get min(): number | null {
+		const min = this.getAttribute('min');
+		return min ? parseFloat(min) : null;
+	}
+	set min(value: number | null) {
+		if (value !== null) {
+			this.setAttribute('min', value.toString());
+			this.inputView?.setAttribute('min', value.toString());
+		} else {
+			this.removeAttribute('min');
+			this.inputView?.removeAttribute('min');
+		}
+	}
+
+	get max(): number | null {
+		const max = this.getAttribute('max');
+		return max ? parseFloat(max) : null;
+	}
+	set max(value: number | null) {
+		if (value !== null) {
+			this.setAttribute('max', value.toString());
+			this.inputView?.setAttribute('max', value.toString());
+		} else {
+			this.removeAttribute('max');
+			this.inputView?.removeAttribute('max');
+		}
+	}
+
+	get step(): number | null {
+		const step = this.getAttribute('step');
+		return step ? parseFloat(step) : null;
+	}
+	set step(value: number | null) {
+		if (value !== null) {
+			this.setAttribute('step', value.toString());
+			this.inputView?.setAttribute('step', value.toString());
+		} else {
+			this.removeAttribute('step');
+			this.inputView?.removeAttribute('step');
+		}
+	}
+
+	get minlength(): number | null {
+		const minlength = this.getAttribute('minlength');
+		return minlength ? parseFloat(minlength) : null;
+	}
+	set minlength(value: number | null) {
+		if (value !== null) {
+			this.setAttribute('minlength', value.toString());
+			this.inputView?.setAttribute('minlength', value.toString());
+		} else {
+			this.removeAttribute('minlength');
+			this.inputView?.removeAttribute('minlength');
+		}
+	}
+
+	get maxLength(): number | null {
+		const maxLength = this.getAttribute('maxLength');
+		return maxLength ? parseFloat(maxLength) : null;
+	}
+	set maxLength(value: number | null) {
+		if (value !== null) {
+			this.setAttribute('maxLength', value.toString());
+			this.inputView?.setAttribute('maxLength', value.toString());
+		} else {
+			this.removeAttribute('maxLength');
+			this.inputView?.removeAttribute('maxLength');
+		}
+	}
+
+	get size(): number | null {
+		const size = this.getAttribute('size');
+		return size ? parseFloat(size) : null;
+	}
+	set size(value: number | null) {
+		if (value !== null) {
+			this.setAttribute('size', value.toString());
+			this.inputView?.setAttribute('size', value.toString());
+		} else {
+			this.removeAttribute('size');
+			this.inputView?.removeAttribute('size');
+		}
+	}
+
+	get alt(): string | null {
+		return this.getAttribute('alt');
+	}
+	set alt(value: string | null) {
+		if (value !== null) {
+			this.setAttribute('alt', value);
+			this.inputView?.setAttribute('alt', value);
+		} else {
+			this.removeAttribute('alt');
+			this.inputView?.removeAttribute('alt');
+		}
+	}
+
+	get src(): string | null {
+		return this.getAttribute('src');
+	}
+	set src(value: string | null) {
+		if (value !== null) {
+			this.setAttribute('src', value);
+			this.inputView?.setAttribute('src', value);
+		} else {
+			this.removeAttribute('src');
+			this.inputView?.removeAttribute('src');
+		}
+	}
+
+	get accept(): string | null {
+		return this.getAttribute('accept');
+	}
+	set accept(value: string | null) {
+		if (value !== null) {
+			this.setAttribute('accept', value);
+			this.inputView?.setAttribute('accept', value);
+		} else {
+			this.removeAttribute('accept');
+			this.inputView?.removeAttribute('accept');
+		}
+	}
+
+	get checked(): boolean {
+		return this.inputView?.checked == true;
+	}
+	set checked(value: boolean | string | null) {
+		value = value === true || value === 'true';
+		const view = this.inputView
+		if (view) view.checked = value;
+		if (value) {
+			this.setAttribute('checked', value.toString());
+		} else {
+			this.removeAttribute('checked');
+		}
+	}
+}
+
+OhaeUI.registerViewType('input', OhaeInputView);
+```
+
+
+
+давай напишем новый компонент OhaeMiniCheckbox для этой библиотеки. Отнаследуем его от OhaeBaseView, по устройству сделаем аналогично OhaeInputView но уберем все что не связанно с чекбоксами, также уберем label и separator, и заменим внешний вид чекбокса на отображение иконки font awesome. в инициализационныз данных будем передавать 2 иконки, одну для состояния включен, вторую для выключен. Размер нового чекбокса сделаем минимальним, чтобы поместились иконки. цвет фона всегда прозрачный, цвет иконки тоже указываем в инициализационных данных.
+вот пример данных для инициализации
+```
+{
+	view: "icon_toggle",
+	align: 'center',
+	name: 'lock', // имя инпута
+	valign: 'center',
+	color: '#fff',
+	openIcon: 'fa-unlock',
+	closeIcon: 'fa-lock',
+}
+```
+

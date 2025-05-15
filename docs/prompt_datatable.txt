@@ -1,0 +1,7 @@
+давай напишем публичные методы для этого компонента
+
+id строк может быть как числом или строкой
+- getRow(id: number | string): OhaeDataTableRowView - получаем строку по  
+- addRow(row: DataTableRow | OhaeDataTableRowView): number | string - добавляет строку, принимает объект с данными ячеек строки. возвращает id вставленной строки
+- removeRow(row: id | OhaeDataTableRowView): OhaeDataTableRowView - удаляет строку по id, возвращает удаленную строку
+- insertRowBefore(source: id | DataTableRow | OhaeDataTableRowView, target: id |  OhaeDataTableRowView): number | string  - перемещает строку  source вставляя ее перед target. возвращает id вставленной строки, если source: DataTableRow, вставляем новую строку в указанную позицию

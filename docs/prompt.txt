@@ -1,0 +1,964 @@
+есть такая библиотека UI
+```
+import { EventHandlers, OhaeViewOptions } from "./OhaeViewOptions";
+import { OhaeBaseView } from "./widgets/OhaeBaseView";
+
+export class OhaeUI {
+    private static PREFIX: string = 'ohae-';
+    private static viewTypes: Record<string, CustomElementConstructor> = {};
+    private static viewList: Record<string, HTMLElement> = {};
+
+    private parent: HTMLElement;
+    private view: HTMLElement | Text | (HTMLElement|Text)[] | null;
+
+    constructor(data: OhaeViewOptions | string | (OhaeViewOptions | string)[], parent: HTMLElement | string | null = null) {
+        if (typeof parent === 'string') {
+            this.parent = document.getElementById(parent) || document.body;
+        } else {
+            this.parent = parent || document.body;
+        }
+        this.view = OhaeUI.createView(data, this.parent);
+    }
+
+    static registerViewType(typeName: string, typeClass: CustomElementConstructor, options?: ElementDefinitionOptions) {
+        OhaeUI.viewTypes[typeName] = typeClass;
+        customElements.define(OhaeUI.getName(typeName), typeClass, options);
+    }
+
+    static getViewClassByType(typeName: string = 'layout'): CustomElementConstructor | undefined {
+        return OhaeUI.viewTypes[typeName];
+    }
+
+    static getViewById(viewId: string): HTMLElement | undefined {
+        return OhaeUI.viewList[viewId];
+    }
+
+    static isRegistered(typeName: string): boolean {
+        return !!OhaeUI.viewTypes[typeName];
+    }
+
+    static getName(typeName: string): string {
+        return OhaeUI.viewTypes[typeName] ? OhaeUI.PREFIX + typeName : typeName;
+    }
+
+    static getPrefixedId(id: string | number): string {
+        return OhaeUI.PREFIX + id.toString();
+    }
+
+    static storeView(viewId: string, viewInstance: HTMLElement) {
+        if (!viewId) return;
+        OhaeUI.viewList[viewId] = viewInstance;
+    }
+
+    static createView(data: OhaeViewOptions | string | (OhaeViewOptions | string)[], parent: HTMLElement): HTMLElement | (HTMLElement|Text)[] | Text | null {
+        if (!data) return null;
+
+        if (typeof data === 'string') {
+            return this.createHtmlBlock(data, parent);
+        }
+
+        if (Array.isArray(data)) {
+            const fragments: (HTMLElement|Text)[] = [];
+            data.forEach((item) => {
+                const fragment = OhaeUI.createView(item, parent);
+                if (fragment) {
+                    if (Array.isArray(fragment)) {
+                        fragments.push(...fragment);
+                    } else {
+                        fragments.push(fragment);
+                    }
+                }
+            });
+            return fragments;
+        }
+
+        if (typeof data === 'object') {
+            return OhaeUI.createElement(data, parent);
+        }
+        return null;
+    }
+    
+    private static createHtmlBlock(text: string, parent: HTMLElement): HTMLElement | Text | null{
+        // const fragment = document.createTextNode(text);
+        const fragment = document.createElement('span');
+        parent.appendChild(fragment);
+        fragment.innerHTML = text;
+        return fragment;
+        // parent.innerHTML += text;
+        // return null;
+    }
+
+    private static createElement(options: OhaeViewOptions, parent: HTMLElement): HTMLElement {
+
+        const viewType = options.view ?? 'layout';
+        const viewName = OhaeUI.getName(viewType);
+        console.log('createElement',viewType, viewName);
+        const viewItem = document.createElement(viewName);
+
+        if(viewItem instanceof OhaeBaseView){
+            this.initOhaeHtmlElement(viewItem, options);
+        }else{
+            this.initStandartHtmlElement(viewItem, options);
+        }
+
+        parent.appendChild(viewItem);
+        OhaeUI.storeView(options.id, viewItem);
+
+        return viewItem;
+
+    }
+
+    private static initOhaeHtmlElement(viewItem: OhaeBaseView, options: OhaeViewOptions): void {
+        const viewType = options.view ?? 'layout';
+
+        const body = options.rows ?? options.cols ?? options.body;
+        const direction = options.cols ? 'cols' : options.rows ? 'rows' : 'cols';
+        options.direction = direction;
+
+        viewItem.init(options);
+
+        if (viewType === 'layout') {
+            viewItem.setAttribute('direction', direction);
+        }
+
+        Object.entries(options).forEach(([key, value]) => {
+            if (key === 'id'){
+                viewItem.setAttribute(key, this.getPrefixedId(value));
+            }else if (!['options', 'body', 'rows', 'cols'].includes(key) && value !== undefined) {
+                if(value!==null) (viewItem as OhaeBaseView).setAttribute(key, value.toString());
+            }
+        });
+
+        if (body) {
+            OhaeUI.createView(body, viewItem);
+        }
+    }
+
+    private static initStandartHtmlElement(viewItem: HTMLElement, options: OhaeViewOptions) {
+        Object.entries(options).forEach(([key, value]) => {
+            if (key === 'id'){
+                viewItem.setAttribute(key, this.getPrefixedId(value));
+            }else if (!['options', 'body', 'rows', 'cols'].includes(key) && value !== undefined) {
+                (viewItem as OhaeBaseView).setAttribute(key, value.toString());
+            }
+        });
+        this.applyListeners(viewItem, options.on);
+
+    }
+
+    private static applyListeners(element: HTMLElement, listeners?: EventHandlers): void {
+        if (!listeners) return;
+        Object.entries(listeners).forEach(([key, callback]) => {
+            element.addEventListener(key, (event: Event) => {
+                callback.call(element, event);
+            });
+        });
+    }
+}
+```
+вот такие тайпинги для инициализационных данных
+```
+export type AlignValues = 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly' | 'start' | 'end' | 'none' ;
+export type FlexAlignValues = 'stretch' | 'flex-start' | 'center' | 'flex-end' | 'baseline' | 'none';
+export type Side = 'top' | 'bottom' | 'left' | 'right';
+export interface OhaeViewOptions {
+    view?: string;
+    direction?: 'rows' | 'cols';
+    backgroundColor?: string;
+    block?: boolean;
+    width?: string | number;
+    minWidth?: string | number;
+    maxWidth?: string | number;
+    height?: string | number;
+    minHeight?: string | number;
+    maxHeight?: string | number;
+    padding?: string | number;
+    margin?: string | number;
+    flex?: string | number;
+    overflowY?: string;
+    align?: AlignValues;
+    valign?: FlexAlignValues;
+    body?: (OhaeViewOptions | string)[] | OhaeViewOptions | string;
+    rows?: (OhaeViewOptions | string)[];
+    cols?: (OhaeViewOptions | string)[];
+    on?: Record<string, (this: HTMLElement, ev: Event) => void>;
+    
+    // для табов
+    side?: Side;
+
+    // общее для input, select, textarea
+    name?: string;
+    separator?: string;
+    label?: string;
+    inputWidth?: string | number;
+    disabled?: string | boolean;
+    readonly?: string | boolean;
+    required?: string | boolean;
+    reverse?: string | boolean;
+
+    // для input
+    value?: string | number | boolean;
+    type?: string;
+    alt?: string;
+    src?: string;
+    pattern?: string;
+    max?: string | number;
+    min?: string | number;
+    step?: string | number;
+    minlength?: string | number;
+    maxLength?: string | number;
+    size?: string | number;
+    placeholder?: string;
+    accept?: string;
+    checked?: string | boolean;
+
+    // для select 
+    multiple?: string | boolean | number;
+    lines?: string | number;
+    options?: any;
+
+    // для аккордионов
+    enableShift?: string | boolean;
+
+    // для tabsView
+    allowHideAll?: string | boolean;
+    tabsSide?: Side;
+    tabsHeight?: string | number;
+    tabsWidth?: string | number;
+
+    // для tabItenView
+    tabIcon?: string | number;
+    header?: string | number;
+    active?: string | boolean;
+
+    [key: string]: any; // Для поддержки дополнительных атрибутов
+}
+
+export type EventHandlers = Record<string, EventHandler>;
+export type EventHandler = (this: HTMLElement, ev: Event) => void;
+```
+
+вот такие компоненты (на самом деле их больше, но и этих хватит чтобы увидеть стиль кода и понять и запомнить как все взаимодействует)
+```
+import { OhaeUI } from '../OhaeUI';
+import { AlignValues, EventHandler, EventHandlers, OhaeViewOptions } from '../OhaeViewOptions';
+import { Color } from '../utils/Collor.ts';
+import { SizeNumber } from '../utils/SizeNumber.ts';
+
+export class OhaeBaseView extends HTMLElement {
+	public static readonly ATTRIBUTES: string[] = [
+		'id',
+		'align',
+		'valign',
+		'flex',
+		'width',
+		'height',
+		'maxWidth',
+		'maxHeight',
+		'minWidth',
+		'minHeight',
+		'padding',
+		'margin',
+		'backgroundColor',
+		'parentDirrection',
+	];
+	protected static readonly STYLES: string = `
+		<style>
+			:host {
+				border-radius: 3px;
+				display: flex;
+				box-sizing: border-box;
+				padding: 0px;
+				margin: 0px;
+				flex: none;
+			}
+			:host([backgroundColor]) {
+				box-shadow: 2px 2px 2px rgba(0, 0, 0, .1);
+				background-color:  var(--host-bg-color, #333);
+				color: var(--host-color, #aaa);
+			}
+		</style>
+	`;
+	protected static readonly HTML: string = `
+		<slot></slot>
+	`;
+	protected static readonly JUSTIFY_VALUES_MAP: Record<AlignValues, string> = {
+		'flex-start': 'left', 			// Элементы выравниваются по началу основной оси (по умолчанию).
+		'flex-end': 'right', 			// Элементы выравниваются по концу основной оси.
+		'center': 'center', 			// Элементы выравниваются по центру основной оси.
+		'space-between': 'justify', 	// Элементы распределяются равномерно по основной оси, первый элемент прижимается к началу, последний — к концу, а остальные равномерно распределяются.
+		'space-around': 'justify', 		// Элементы распределяются равномерно, но с равными промежутками вокруг каждого элемента.
+		'space-evenly': 'justify', 		// Элементы распределяются равномерно, включая промежутки до первого и после последнего элемента.
+		'start': 'left', 				// Элементы выравниваются по началу контейнера (по оси написания текста, обычно для текстов слева направо).
+		'end': 'right', 				// Элементы выравниваются по концу контейнера (по оси написания текста, обычно для текстов справа налево).
+		'none': 'left'
+	}
+	protected elementOptions?: OhaeViewOptions;
+	protected shadow!: ShadowRoot;
+
+	constructor() {
+		super();
+		this.shadow = this.attachShadow({ mode: 'open' });
+
+	}
+
+	static get observedAttributes(): string[] {
+		return [...OhaeBaseView.ATTRIBUTES];
+	}
+
+	public init(options: OhaeViewOptions) {
+		this.elementOptions = options;
+	}
+
+	protected connectedCallback() {
+		this.render();
+		this.applyListeners();
+		this.applyAttributes(OhaeBaseView.observedAttributes);
+
+		const parent = this.parentElement as HTMLElement;
+		const observer = new MutationObserver(this.updateParentDirection.bind(this));
+		observer.observe(parent, { attributes: true, attributeFilter: ['direction'] });
+		this.updateParentDirection();
+	}
+
+	private updateParentDirection() {
+		const parent = this.parentElement as HTMLElement;
+		const parentDirection = parent.getAttribute('direction');
+		this.setAttribute('parentDirection', parentDirection ?? 'rows')
+	}
+
+	protected disconnectedCallback() {
+	}
+
+	protected attributeChangedCallback(name: string, oldValue: string, newValue: string) {
+		if (oldValue !== newValue) {
+			this.applyAttribute(name, newValue);
+		}
+	}
+
+	protected render() {
+		const staticThis = (this.constructor as typeof OhaeBaseView);
+		this.shadowRoot!.innerHTML = staticThis.STYLES + staticThis.HTML;
+	}
+
+	protected getListenesTarget(): HTMLElement | null {
+		const terget = this.shadowRoot?.querySelector("slot") as HTMLElement | null;
+		return terget
+	}
+
+	protected applyListeners(): void {
+		const listeners = this?.elementOptions?.on as EventHandlers;
+		if (!listeners) return;
+
+		const targetElement = this.getListenesTarget();
+		if (!targetElement) return;
+
+		const self = this;
+		Object.entries(listeners).forEach(([key, callback]) => {
+			targetElement.addEventListener(key, (ev: Event) => {
+				(callback as EventHandler).call(self, ev);
+			});
+		});
+	}
+
+	protected applyAttributes(attributes: string[]): void {
+		attributes.forEach(name => {
+			const value = this.getAttribute(name);
+			if (value !== null) this.applyAttribute(name, value);
+		});
+	}
+
+	protected applyAttribute(name: string, value: string): void {
+		if (name in this) {
+			(this as any)[name] = value;
+		}
+	}
+
+	setOptions(operations: any) {
+	}
+
+	get flex(): number | null {
+		const value = this.getAttribute('flex');
+		if (!value) return null
+		return parseFloat(value);
+	}
+	set flex(value: string | number | null) {
+		if (value === null) return;
+
+		if (value === 'none') {
+			this.style.flexGrow = 'none';
+			this.setAttribute('flex', 'none');
+		} else if (typeof value === 'number') {
+			this.style.flexGrow = value.toString();
+			this.setAttribute('flex', value.toString());
+		} else {
+			this.style.flexGrow = value;
+		}
+	}
+
+	get backgroundColor(): Color | null {
+		const backgroundColor = this.getAttribute('backgroundColor');
+		if (!backgroundColor) return null;
+		return new Color(backgroundColor);
+	}
+	set backgroundColor(value: string | Color | null) {
+		if (!value) return;
+
+		const color = typeof value === 'string' ? new Color(value) : value;
+		this.setAttribute('backgroundColor', color.hex);
+
+		this.style.setProperty("--host-bg-color", color.hex);
+		this.style.setProperty("--host-color", color.adjustShift(128).hex);
+		this.style.setProperty("--host-hr-color", color.adjustShift(64).hex);
+	}
+
+	get align(): string | null {
+		return this.getAttribute('align');
+	}
+	set align(value: string | null) {
+		if (value === null) return;
+		this.setAttribute('align', value);
+		this.style.textAlign = OhaeBaseView.JUSTIFY_VALUES_MAP[value as AlignValues];
+		this.style.justifyContent = value;
+	}
+
+	get valign(): string | null {
+		return this.getAttribute('align');
+	}
+	set valign(value: string | null) {
+		if (value === null) return;
+		this.style.alignItems = value;
+	}
+
+	get margin(): string | null {
+		return this.getAttribute('margin');
+	}
+	set margin(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('margin', parsedValue);
+		this.style.margin = parsedValue;
+	}
+
+	get padding(): string | null {
+		return this.getAttribute('padding');
+	}
+	set padding(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('padding', parsedValue);
+		this.style.padding = parsedValue;
+	}
+
+	get height(): string | null {
+		return this.getAttribute('height');
+	}
+	set height(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('height', parsedValue);
+		this.style.height = parsedValue;
+	}
+
+	get minHeight(): string | null {
+		return this.getAttribute('minHeight');
+	}
+
+	set minHeight(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('minHeight', parsedValue);
+		this.style.minHeight = parsedValue;
+	}
+
+	get maxHeight(): string | null {
+		return this.getAttribute('maxHeight');
+	}
+	set maxHeight(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('maxHeight', parsedValue);
+		this.style.maxHeight = parsedValue;
+	}
+
+	get width(): string | null {
+		return this.getAttribute('width');
+	}
+	set width(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('width', parsedValue);
+		this.style.width = parsedValue;
+	}
+
+	get minWidth(): string | null {
+		return this.getAttribute('minWidth');
+	}
+	set minWidth(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('minWidth', parsedValue);
+		this.style.minWidth = parsedValue;
+	}
+
+	get maxWidth(): string | null {
+		return this.getAttribute('maxWidth');
+	}
+
+	set maxWidth(value: string | number | null) {
+		if (value === null) return;
+		const parsedValue = this.parseSizeValue(value);
+		this.setAttribute('maxWidth', parsedValue);
+		this.style.maxWidth = parsedValue;
+	}
+
+	protected parseSizeValue(value: string | number): string {
+		const number = new SizeNumber(value);
+		return number.toString();
+	}
+
+	protected parseNumberValue(value: string | number): string {
+		const number = new SizeNumber(value);
+		return number.toNumber().toString();
+	}
+}
+
+OhaeUI.registerViewType('base', OhaeBaseView);
+```
+
+```
+import { OhaeUI } from '../OhaeUI';
+import { layoutAttributes, setLayoutProperties } from './attributes/OhaeLayoutAttributes';
+import { OhaeBaseView } from './OhaeBaseView';
+
+export class OhaeLayoutView extends OhaeBaseView {
+    public static readonly ATTRIBUTES: string[] = [
+        'collapsed',
+        'direction',
+        'overflow',
+        'overflowX',
+        'overflowY',
+    ];
+	protected static readonly STYLES: string = `
+        <style>
+            :host {
+                border-radius: 3px;
+                display: flex;
+                overflow: auto;
+                box-sizing: border-box;
+                padding: 0px;
+                margin: 0px;
+                flex-grow: 1;
+            }
+            /* :host(:not([backgroundColor])) { */
+            :host([backgroundColor]) {
+                background-color:  var(--host-bg-color, #333);
+                box-shadow: 2px 2px 2px rgba(0, 0, 0, .1);
+                color: var(--host-color, #ddd);
+            }
+            :host([direction="rows"]) {
+                flex-direction: column;
+            }
+            :host([direction="cols"]) {
+                flex-direction: row;
+            }
+            :host([collapsed]) {
+                display: none;
+            }
+            ::slotted(*) {
+                flex: 1;  /* Все элементы слота будут равномерно растянуты */
+                min-width: 0; /* Позволяет элементам сужаться */
+            }
+        </style>
+	`;
+
+    private resizeObserver: ResizeObserver;
+
+    constructor() {
+        super();
+        this.resizeObserver = new ResizeObserver(() => this.handleResize());
+    }
+
+    static get observedAttributes() {
+        return [...super.observedAttributes, ...OhaeLayoutView.ATTRIBUTES];
+    }
+
+    protected override connectedCallback() {
+        super.connectedCallback();
+        this.applyAttributes(layoutAttributes);
+        this.resizeObserver.observe(this);
+    }
+
+    protected override disconnectedCallback() {
+        super.disconnectedCallback();
+        this.resizeObserver.disconnect();
+    }
+
+    private handleResize() {
+        // Логика для обработки изменения размеров
+    }
+
+    public show() {
+        this.collapsed = false;
+    }
+
+    public hide() {
+        this.collapsed = true;
+    }
+
+    get overflow(): string | null {
+        return this.getAttribute('overflow');
+    }
+    set overflow(value: string | null) {
+        if (value === null) return;
+        this.setAttribute('overflow', value);
+        this.style.overflow = value;
+    }
+
+    get overflowX(): string | null {
+        return this.getAttribute('overflowX');
+    }
+    set overflowX(value: string | null) {
+        if (value === null) return;
+        this.setAttribute('overflowX', value);
+        this.style.overflowX = value;
+    }
+
+    get overflowY(): string | null {
+        return this.getAttribute('overflowY');
+    }
+    set overflowY(value: string | null) {
+        if (value === null) return;
+        this.setAttribute('overflowY', value);
+        this.style.overflowY = value;
+    }
+
+    get collapsed(): boolean {
+		return this.getAttribute('collapsed') === 'true';
+	};
+	set collapsed(value: boolean | string | null) {
+		value = value === true || value === 'true';
+        
+        if (value) {
+			this.setAttribute('collapsed', value.toString());
+            // this.classList.add('collapse');
+		} else {
+			this.removeAttribute('collapsed');
+            // this.classList.remove('collapse');
+		}
+    }
+}
+
+OhaeUI.registerViewType('layout', OhaeLayoutView);
+```
+
+```
+import { OhaeUI } from "../OhaeUI";
+import { OhaeLayoutView } from "./OhaeLayoutView";
+import { OhaeAccordionItemView } from "./OhaeAccordionItemView";
+
+export class OhaeAccordionView extends OhaeLayoutView {
+    public static readonly ATTRIBUTES: string[] = [
+        'multiple',
+        'enableShift',
+    ];
+
+    protected static readonly STYLES: string = `
+    <style>
+        :host {
+            display: flex;
+            overflow: auto;
+            box-sizing: border-box;
+            padding: 0px;
+            margin: 0px;
+            flex-grow: 1;
+        }
+
+        :host([direction="rows"]) {
+            flex-direction: column;
+        }
+
+        :host([direction="cols"]) {
+            flex-direction: row;
+        }
+    </style>
+    `;
+
+    protected override connectedCallback() {
+        super.connectedCallback();
+        this.applyAttributes(OhaeAccordionView.ATTRIBUTES);
+        this.addEventListener('section-toggle', this.handleSectionToggle.bind(this));
+    }
+
+    static get observedAttributes() {
+        return [...super.observedAttributes, ...this.ATTRIBUTES];
+    }
+
+
+    private handleSectionToggle(event: Event) {
+        const customEvent = event as CustomEvent;
+        const targetSection = customEvent.detail.section as OhaeAccordionItemView;
+        this.tryToggledSections(targetSection);
+        this.tryShiftToggledSection(targetSection);
+    }
+
+    private tryToggledSections(ignoreSection: OhaeAccordionItemView) {
+        const sections = this.querySelectorAll('ohae-accordion-item') as NodeListOf<OhaeAccordionItemView>;
+        if (!this.multiple) {
+            sections.forEach(section => {
+                if (section !== ignoreSection) {
+                    section.collapsed = true; // Сворачиваем все секции, кроме текущей
+                }
+            });
+        }
+    }
+
+    private tryShiftToggledSection(targetSection: OhaeAccordionItemView) {
+        if (this.enableShift) {
+            const sections = this.querySelectorAll('ohae-accordion-item') as NodeListOf<OhaeAccordionItemView>;
+            const isColapsed = targetSection.collapsed;
+            Array.from(sections).some(section => {
+                if (section !== targetSection && section.collapsed) {
+                    if (isColapsed) {
+                        this.insertBefore(targetSection, section);
+                    } else {
+                        this.insertBefore(targetSection, section);
+                    }
+                    return true;
+                }
+            });
+            this.scrollTop = 0;
+        }
+    }
+
+
+    get multiple(): boolean {
+        return this.getAttribute('multiple') === 'true';
+    };
+    set multiple(value: boolean | string | null) {
+        value = value === true || value === 'true';
+        if (value) {
+            this.setAttribute('multiple', 'true');
+        } else {
+            this.removeAttribute('multiple');
+        }
+    }
+
+    get enableShift(): boolean {
+        return this.getAttribute('enableShift') === 'true';
+    };
+    set enableShift(value: boolean | string | null) {
+        value = value === true || value === 'true';
+        this.setAttribute('enableShift', value.toString());
+        if (value) {
+            this.setAttribute('enableShift', 'true');
+        } else {
+            this.removeAttribute('enableShift');
+        }
+    }
+
+
+}
+
+OhaeUI.registerViewType('accordion', OhaeAccordionView);
+```
+
+```
+import { OhaeUI } from "../OhaeUI";
+import { OhaeLayoutView } from "./OhaeLayoutView";
+
+export class OhaeAccordionItemView extends OhaeLayoutView {
+    public static readonly ATTRIBUTES: string[] = [
+        'collapsed',
+        'header',
+    ];
+
+    protected static readonly STYLES: string = `
+    <style>
+        :host {
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            border-radius: 4px;
+            padding: 0px;
+            margin: 0px;
+            /* flex-grow: 1; */
+            /* !!! border: solid #222 1px; */
+            /* !!! background-color: #484848; */
+        }
+
+        :host([backgroundColor]) {
+            box-shadow: 2px 2px 2px rgba(0, 0, 0, .1);
+            color: var(--host-color, #ddd);
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            height: 28px;
+            background-color: var(--host-bg-color, #404040);
+            color: #ссс;
+            border-radius: 4px 4px 0 0;
+            justify-content: space-between;
+            padding: 0px 10px;
+            cursor: pointer;
+            font-weight: 500;
+            margin: 2px 0 0 0 ;
+        }
+        :host([parentDirection="cols"][collapsed]) .header {
+            flex-direction: column-reverse;
+            justify-content: flex-start;
+            align-items: center;
+            padding: 4px 0px;
+            height: 100%;
+            width: 28px;
+        }
+
+        .header-body {
+            display: flex;
+            flex: 1;
+            text-align: center;
+            justify-content: center;
+            height: auto;
+            width: auto;
+        }
+        :host([parentDirection="cols"][collapsed]) .header-body {
+            transform-origin: top left;
+            transform:  translateY(50%) rotate(-90deg);
+            white-space: nowrap;
+            display: flex;
+            flex: 1;
+            width: 100%;
+            height: 28px; /* Высота теперь фиксированная, т.к. он повёрнут */
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .header-icon {
+            flex: 0;
+            margin-left: 0px;
+        }
+        :host([parentDirection="cols"][collapsed]) .header-icon {
+            margin: 0;
+            padding: 0;
+            margin-bottom: 0px;
+        }
+
+        .body {
+            background-color: var(--host-bg-color, #404040);
+            display: flex;
+            flex-direction: column;
+            padding: 5px;
+            /* width: 100%; */
+            /* overflow: hidden; */
+            /* flex-grow: 1;*/
+        }
+        .collapse {
+            display: none;
+        }
+    </style>
+    `;
+    protected static readonly ICON_CLOSE: string = '⬤'; //▼ //▼◆■▲◄●▬◯◼ ⚫⦁
+    protected static readonly ICON_OPEN = '⭘'; //◄ //►◄▼✚୦๏྾ᐤ᠅᪠᮰ᰞ᳁᳃‒⊕⊖⊗⊘⊙⊚
+    protected static readonly ICON_PINED = '❖'; //◆
+    // ⊕⊖⊗⊘⊙⊚⊛⊜⊝⊞⊟⊠⊡ ⌾⏣⏻⏼
+    // ⦶⦷⦸⦹⦺⦻⦼⦽⦾⦿⧀⧁⧂⧃⧄⧅⧆⧇⧈⧉⧊⧋⧌⧍⧎⧏⧐
+    // ┉ ⋯ ᠁ ╍ ╸ ╺
+    // ⨂⨁⨀⭘⬤⮿⮾⯀⬥⬣⬢⯃⯄⯍⯌
+    // ⯅⯆⯇⯈
+
+    protected static readonly HTML: string = `
+        <div class="header">
+            <div class="header-body"></div>
+            <div class="header-icon">${this.ICON_CLOSE}</div>
+        </div>
+        <div class="body">
+            <slot></slot>
+        </div>
+    `;
+
+    protected override connectedCallback() {
+        super.connectedCallback();
+        this.applyAttributes(OhaeAccordionItemView.ATTRIBUTES);
+        this.backgroundColor = this.backgroundColor ?? "#444";
+        const header = this.shadowRoot?.querySelector('.header') as HTMLElement;
+        if (header) {
+            header.addEventListener('click', this.toggleCollapse.bind(this));
+        }
+
+        this.updateIcon();
+    }
+
+    static get observedAttributes() {
+        return [...super.observedAttributes, ...this.ATTRIBUTES];
+    }
+
+    private toggleCollapse() {
+        this.collapsed = !this.collapsed;
+
+        // Генерация события section-toggle
+        const event = new CustomEvent('section-toggle', {
+            bubbles: true, // Событие всплывает до родительских элементов
+            composed: true, // Событие пересекает границы Shadow DOM
+            detail: { section: this, collapsed: this.collapsed },
+        });
+        this.dispatchEvent(event);
+    }
+
+    private updateIcon() {
+        const headerIcon = this.shadowRoot?.querySelector('.header-icon') as HTMLElement;
+        if (!headerIcon) return;
+        headerIcon.innerText = this.collapsed ? OhaeAccordionItemView.ICON_OPEN : OhaeAccordionItemView.ICON_CLOSE;
+    }
+
+    get collapsed(): boolean {
+		return this.getAttribute('collapsed') === 'true';
+	};
+	set collapsed(value: boolean | string | null) {
+		value = value === true || value === 'true';
+
+        const body = this.shadowRoot?.querySelector('.body') as HTMLElement;
+        if (value) {
+			this.setAttribute('collapsed', value.toString());
+            body?.classList.add('collapse');
+		} else {
+			this.removeAttribute('collapsed');
+            body?.classList.remove('collapse');
+		}
+        this.updateIcon();
+    }
+
+    get header(): string {
+        const headerBody = this.shadowRoot?.querySelector('.header-body') as HTMLElement;
+        return headerBody?.innerText ?? '';
+    }
+    set header(value: string) {
+        const headerBody = this.shadowRoot?.querySelector('.header-body') as HTMLElement;
+        if (headerBody) {
+            headerBody.innerText = value ?? '';
+        }
+    }
+}
+
+OhaeUI.registerViewType('accordion-item', OhaeAccordionItemView);
+```
+
+
+давай напишем новый компонент OhaeDataTable для этой библиотеки для работы таблиными данными.
+вот неполный пример его инициализационных данных
+```
+{
+    view:"datatable",
+    columns:[
+        { id:"rank",    header:"",              width:50},
+        { id:"title",   header:"Film title",    width:200},
+        { id:"year",    header:"Released",      width:80},
+        { id:"votes",   header:"Votes",         width:100}
+    ],
+    data: [
+        { id:1, title:"The Shawshank Redemption", year:1994, votes:678790, rank:1},
+        { id:2, title:"The Godfather", year:1972, votes:511495, rank:2}
+    ]
+}
+```
+

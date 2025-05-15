@@ -1,0 +1,13 @@
+:host {
+    border-radius: 3px;
+    display: flex;
+    box-sizing: border-box;
+    padding: 0px;
+    margin: 0px;
+    flex: none;
+}
+:host([backgroundColor]) {
+    box-shadow: 2px 2px 2px rgba(0, 0, 0, .1);
+    background-color:  var(--host-bg, #333);
+    color: var(--host-color, #aaa);
+}

@@ -1,0 +1,26 @@
+{
+  "name": "ohae",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npm run dev",
+    "build": "tsc && vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@pixi/layers": "^2.1.0",
+    "@pixi/lights": "^4.1.0",
+    "fflate": "^0.8.2",
+    "gsap": "^3.12.7",
+    "pixi.js": "^8.6.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "ace-builds": "^1.39.0",
+    "eslint": "^9.16.0",
+    "reflect-metadata": "^0.2.2",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.2"
+  }
+}

@@ -1,0 +1,54 @@
+/* SCROOLBAR Настройки внешнего вида для скролбаров */
+* {
+    /* Основные стили для скроллбара */
+    scrollbar-color: rgb(65, 94, 156) #00000000;
+    scrollbar-width: thin;
+    /* scroll-margin: 0px; */
+    /* scroll-padding: 0px; */
+    /* scrollbar-gutter: auto; */
+    box-sizing: border-box;
+    /* overflow: auto; */
+}
+
+*::-webkit-scrollbar {
+    /* Общие параметры скроллбара */
+    /* width: 2px; */
+    /* height: 7px; */
+    background-color: transparent;
+    
+}
+
+
+*::-webkit-scrollbar-track {
+    /* Закругляем углы у трека (не работает везде, но улучшает вид) */
+    /* background-color: #ff0000aa; */
+    border-radius: 4px;
+}
+
+*::-webkit-scrollbar-corner {
+    /* background-color: transparent; */
+}
+
+*::-webkit-scrollbar-thumb {
+    /* box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.7); */
+    /* background-color: rgba(105, 105, 221, 0.6); */
+    
+    /* Закругляем сам ползунок */
+    border-radius: 4px;
+    transition: background 0.3s;
+
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    /* Эффект при наведении */
+    background-color: rgb(65, 94, 156);
+}
+
+
+*::-webkit-scrollbar-track-piece {
+    /* Дополнительно скрываем углы (требует поддержки clip-path) */
+    clip-path: inset(1px 1px);
+}
+
+/* TEXTAREA */
+
