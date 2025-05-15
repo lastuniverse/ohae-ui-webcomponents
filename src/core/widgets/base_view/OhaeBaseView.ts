@@ -4,11 +4,11 @@ import { AlignValues, EventHandler, EventHandlers, IOhaeViewOptions, LayoutDirec
 import { StateConnector } from '../../state/StateConnector.ts';
 import { Color } from '../../utils/Color.ts';
 
-import styles from './OhaeBaseView.css?raw';
-import fontawesome from './fontawesome.css?raw';
-import html from './OhaeBaseView.html?raw';
+// import styles from './OhaeBaseView.css?raw';
+// import fontawesome from './fontawesome.css?raw';
+// import html from './OhaeBaseView.html?raw';
 
-console.log('>>>', 'OhaeBaseView', styles);
+// console.log('>>>', 'OhaeBaseView', styles);
 import { SizeNumber } from '../../utils/SizeNumber.ts';
 
 
@@ -30,9 +30,28 @@ export class OhaeBaseView extends HTMLElement {
 		'parentdirection',
 	];
 
-	protected static readonly STYLES: string = `<style>${styles}</style>`;
-	protected static readonly FONT_AVESOME: string = `<style>${fontawesome}</style>`;
-	protected static readonly HTML: string = html;
+	protected static readonly STYLES: string = `<style>
+		:host {
+			border-radius: 3px;
+			display: flex;
+			box-sizing: border-box;
+			padding: 0px;
+			margin: 0px;
+			flex: none;
+		}
+		:host([backgroundColor]) {
+			box-shadow: 2px 2px 2px rgba(0, 0, 0, .1);
+			background-color:  var(--host-bg, #333);
+			color: var(--host-color, #aaa);
+		}
+
+		</style>`;
+
+	protected static readonly FONT_AVESOME: string = `<style>
+		@import url("./assets/fontawesome-free-6.7.2-web/css/all.min.css");
+	</style>`;
+	
+	protected static readonly HTML: string = `<slot></slot>`;
 
 	protected static readonly JUSTIFY_VALUES_MAP: Record<AlignValues, string> = {
 		'flex-start': 'left', 			// Элементы выравниваются по началу основной оси (по умолчанию).
