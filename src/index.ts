@@ -144,6 +144,7 @@ const dataInputView: IOhaeViewOptions = {
 	],
 };
 
+console.log(dataInputView)
 const ui = new OhaeUI(dataInputView, document.body);
 // const element = OhaeUI.getViewById('main') as OhaeLayoutView;
 
